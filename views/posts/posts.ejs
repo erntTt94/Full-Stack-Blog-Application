@@ -1,0 +1,95 @@
+<% layout('layouts/boilerplate')%>
+    <%if((currentUser) && (currentUser.role==='admin' )) {%>
+        <div class="mb-5">
+            <a class="btn btn-outline-secondary  p-2 rounded" href="
+            /posts/new">Create New Post</a>
+        </div>
+        <% } %>
+
+            <% posts.forEach(post=> { %>
+                <div class="card col-xl-8 offset-xl-2 my-2 bg-light bg-gradient bg-opacity-50 border border-start-0 border-end-0 border-dark-subtle border-2"
+                    id="post-<%=post.id %>">
+                    <div class="row p-2">
+                        <div class="text-center">
+                            <h1 class="text-bold fw-medium">
+                                <%=post.title%>
+                            </h1>
+                        </div>
+                        <%if (post.image_url) { %>
+                            <div class="card-body">
+                                <img class="img-fluid rounded w-50 mx-auto d-block" src="<%=post.image_url %>"
+                                    alt="post image">
+                            </div>
+                            <% } %>
+                                <div>
+                                    <p class="card-text text-center fst-italic">
+                                        <%=post.content %>
+                                    </p>
+                                    <p class="card-text mb-0 mt-5">
+                                        <small class="text-secondary">Posted on: <%= post.created_at %></small>
+                                    </p>
+                                    <div>
+                                        <a class="btn btn-secondary" role="button"
+                                            href="/posts/<%= post.id%>/edit">Edit</a>
+                                        <form method="post" action="/posts/<%=post.id%>?_method=DELETE"
+                                            style="display: inline">
+                                            <button type="submit"
+                                                class="btn btn-danger rounded my-2 mx-1">Delete</button>
+                                        </form>
+                                    </div>
+                                </div>
+                    </div>
+                </div>
+                <% if(post.comments.length> 0) { %>
+                    <div class="container">
+                        <div class="card p-4 border-top-0 border-bottom-0 border-danger col-xl-10 offset-xl-1 my-4">
+                            <h4 class="mb-2">Comments:</h4>
+                            <%post.comments.forEach((comment)=> { %>
+                                <p class="mb-0">
+                                    <%= comment.content %>
+                                </p>
+                                <strong class='border border-top-0 border-end-0 border-start-0 pb-2'>
+                                    - <%= comment.username %>
+                                </strong>
+                                <% if(user && user.id===comment.user_id) { %>
+                                    <div class="d-flex justify-content-end pt-2">
+                                        <button class="btn btn-primary edit-btn me-2" data-id="<%=comment.id%>"
+                                            type="submit">Edit</button>
+                                        <form class="edit-form m-2 validated-form" id="edit-form-<%= comment.id %>"
+                                            action="/comments/edit/<%=comment.id %>?_method=PUT" method="post"
+                                            novalidate style="display: none;">
+                                            <div class="mb-2">
+                                                <input type="hidden" name="post_id" value="<%= post.id %>">
+                                                <input class="form-control scroll-position" type="text" name="content"
+                                                    value="<%= comment.content %>" required>
+                                            </div>
+                                            <button class="btn btn-secondary" type="submit"
+                                                data-id="<%=comment.id%>">Update</button>
+                                            <button type="button" class="cancel-btn btn btn-warning me-2"
+                                                data-id="<%=comment.id%>">Cancel</button>
+                                        </form>
+                                        <form action="/comments/delete/<%=comment.id %>?_method=DELETE" method="POST"
+                                            id="delete-form-<%=comment.id %>">
+                                            <input type="hidden" name="post_id" value="<%= post.id %>">
+                                            <button class="btn btn-danger" type="submit">Delete</button>
+                                        </form>
+                                    </div>
+                                    <%} %>
+                                        <% }) %>
+                        </div>
+                    </div>
+                    <% } %>
+                        <div class="container mb-5">
+                            <div class="col-6 offset-1">
+                                <form action="/comments/<%= post.id %>" method='POST' novalidate class="validated-form">
+                                    <div class=" mb-3">
+                                        <label class="form-label fst-italic" for="content">Comment:</label>
+                                        <input type="hidden" name="post_id" value="<%= post.id %>">
+                                        <textarea class="form-control" id="content" name="content" cols="5" rows="5"
+                                            required></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary">Comment</button>
+                                </form>
+                            </div>
+                        </div>
+                        <% }) %>

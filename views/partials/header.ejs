@@ -9,21 +9,21 @@
             <div class="navbar-nav">
                 <a class="nav-link" href="/">Home</a>
                 <a class="nav-link" href="/posts">Posts</a>
-             
+                <%if((currentUser) && (currentUser.role==='admin' )){%>
                     <a class="nav-link" href="/posts/new">New Post</a>
-                 
+                    <% } %>
             </div>
             <div class="navbar-nav ms-auto">
-       
+                <% if(!currentUser) { %>
                     <a class="nav-link" href="/login">Login</a>
                     <a class="nav-link" href="/register">Register</a>
-               
+                    <% }else { %>
                         <p class="navbar-text me-3 text-success">
-                
+                            <%= currentUser.username %>
                         </p>
                         <a class="nav-link" href="/logout">Logout</a>
 
-                    
+                        <% } %>
 
             </div>
         </div>

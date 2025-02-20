@@ -12,22 +12,14 @@ import users from './views/routes/users.js';
 import session from 'express-session';
 import flash from 'connect-flash';
 import passport from 'passport';
+import { RedisStore } from 'connect-redis';
+import Redis from 'ioredis';
 const __dirname = path.resolve();
 const { Pool } = pg;
+const redisClient = new Redis(process.env.REDIS_URL);
 
 const app = express();
 const port = process.env.PORT || 3000;
-
-const sessionConfig = {
-    secret: process.env.SECRET,
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        httpOnly: true,
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
-        maxAge: 1000 * 60 * 60 * 24 * 7
-    }
-}
 
 export const db = new Pool({
    connectionString: process.env.DATABASE_URL,
@@ -41,7 +33,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(methodOverride("_method"));
 app.use(express.urlencoded({ extended: true }))
 
-app.use(session(sessionConfig));
+app.use(session({
+    store: new RedisStore({ client: redisClient }),
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
+        maxAge: 1000 * 60 * 60 * 24 * 7
+    }
+}))
 app.use(flash());
 
 app.use(passport.initialize());

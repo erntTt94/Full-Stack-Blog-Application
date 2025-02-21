@@ -1,35 +1,14 @@
 import express from 'express';
+import 'dotenv/config';
 import { postSchema } from '../../schemas.js'
 import ExpressError from '../../utils/ExpressError.js';
 import multer from 'multer';
 import { isLoggedIn } from "../../middleware.js";
 import { isAdmin } from "../../middleware.js";
-import path from 'path';
-import fs from 'fs';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../../index.js';
 const router = express.Router();
-
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'public/uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
-
-const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-        cb(null, true);
-    } else {
-        cb(new Error('Only image files are allowed!'), false);
-    }
-}
-
-const upload = multer({
-    storage: storage, fileFilter: fileFilter
-});
 
 const validatePost = (req, res, next) => {
     const { error } = postSchema.validate(req.body);
@@ -40,6 +19,23 @@ const validatePost = (req, res, next) => {
         next();
     }
 }
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const storage = new CloudinaryStorage({
+    cloudinary,
+    params: {
+        folder: 'uploads',
+        format: async (req, file) => file.mimetype.split('/')[1],
+        public_id: (req, file) => file.originalname.replace(/\.[^/.]+$/, '')
+    }
+});
+
+const upload = multer({ storage: storage });
 
 router.get('/', async (req, res) => {
     const postsResult = await db.query('SELECT posts.id, posts.title, posts.content, posts.image_url, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC');
@@ -57,10 +53,13 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', upload.single('image'), isLoggedIn, isAdmin, validatePost, async (req, res) => {
+    let imageUrl = null;
     const { title, content } = req.body;
     const user = req.user;
-    const imageUrl = req.file ? '/uploads/' + req.file.filename : null;
-    await db.query('INSERT INTO posts (title,content, image_url,user_id) VALUES ($1,$2, $3,$4)', [title, content, imageUrl, user.id]);
+    if (req.file) {
+        imageUrl = req.file.path;
+    }
+    await db.query('INSERT INTO posts (title,content,user_id,image_url) VALUES ($1,$2, $3,$4)', [title, content, user.id, imageUrl]);
     req.flash('success', 'Successfully added new post.');
     res.redirect('/posts');
 });
@@ -83,18 +82,16 @@ router.get('/:id/edit', isLoggedIn, isAdmin, async (req, res, next) => {
 router.put('/:id', upload.single('image'), isLoggedIn, isAdmin, validatePost, async (req, res) => {
     const { id } = req.params;
     const { title, content } = req.body;
-    let imageUrl = null;
+
     const item = await db.query('SELECT image_url FROM posts WHERE id = $1', [id]);
+    let imageUrl = item.rows[0].image_url;
+
     if (req.file) {
-        imageUrl = '/uploads/' + req.file.filename;
-        const oldImage = item.rows[0].image_url;
-        if (oldImage) {
-            fs.unlink(`public/${oldImage}`, (err) => {
-                if (err) {
-                    console.log(err);
-                }
-            });
+        if (imageUrl) {
+            const publicId = imageUrl.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`uploads/${publicId}`);
         }
+        imageUrl = req.file.path;
     }
     await db.query('UPDATE posts SET title = $1, content = $2, image_url = COALESCE($3, image_url) WHERE id = $4', [title, content, imageUrl, id]);
     req.flash('success', 'Successfully updated post.');
@@ -111,12 +108,8 @@ router.delete('/:id', isLoggedIn, isAdmin, async (req, res, next) => {
         await db.query('DELETE FROM posts WHERE id = $1', [id]);
         req.flash('success', 'Successfully deleted post.');
         if (imageFile) {
-            const imagePath = path.join('public', imageFile);
-            fs.unlink(imagePath, (err) => {
-                if (err) {
-                    console.log(err);
-                }
-            })
+            const publicId = imageFile.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`uploads/${publicId}`);
         }
     };
     res.redirect('/posts');
